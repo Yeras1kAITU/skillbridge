@@ -89,7 +89,7 @@
         function showError(message) {
             document.getElementById('page-content').innerHTML = `
                 <div class="card" style="text-align: center; border-left: 4px solid #ef4444;">
-                    <h3>❌ Ошибка</h3>
+                    <h3>Ошибка</h3>
                     <p>${message}</p>
                     <button class="btn" onclick="showPage('home')">На главную</button>
                 </div>
@@ -135,10 +135,10 @@
             const data = Object.fromEntries(new FormData(form));
             try {
                 await apiCall('/auth/register', 'POST', data);
-                alert('✅ Регистрация успешна! Теперь войдите.');
+                alert('Регистрация успешна! Теперь войдите.');
                 showPage('login');
             } catch (error) {
-                alert('❌ Ошибка: ' + error.message);
+                alert('Ошибка: ' + error.message);
             }
         }
 
@@ -153,7 +153,7 @@
                 await fetchUser();
                 showPage('profile');
             } catch (error) {
-                alert('❌ Ошибка: ' + error.message);
+                alert('Ошибка: ' + error.message);
             }
         }
 
@@ -182,22 +182,22 @@
             data.is_public = data.is_public === 'on';
             try {
                 await apiCall('/users/me', 'PUT', data);
-                alert('✅ Профиль обновлен');
+                alert('Профиль обновлен');
                 await fetchUser();
                 showPage('profile');
             } catch (error) {
-                alert('❌ Ошибка: ' + error.message);
+                alert('Ошибка: ' + error.message);
             }
         }
 
         async function publishProfile() {
             try {
                 await apiCall('/specialists/publish', 'POST');
-                alert('✅ Профиль опубликован в каталоге');
+                alert('Профиль опубликован в каталоге');
                 await fetchUser();
                 showPage('profile');
             } catch (error) {
-                alert('❌ Ошибка: ' + error.message);
+                alert('Ошибка: ' + error.message);
             }
         }
 
@@ -208,10 +208,10 @@
             const formData = new FormData(form);
             try {
                 await apiCall('/portfolio', 'POST', formData, true);
-                alert('✅ Материал загружен');
+                alert('Материал загружен');
                 showPage('portfolio');
             } catch (error) {
-                alert('❌ Ошибка: ' + error.message);
+                alert('Ошибка: ' + error.message);
             }
         }
 
@@ -221,7 +221,7 @@
                 await apiCall(`/portfolio/${id}`, 'DELETE');
                 showPage('portfolio');
             } catch (error) {
-                alert('❌ Ошибка: ' + error.message);
+                alert('Ошибка: ' + error.message);
             }
         }
 
@@ -229,10 +229,10 @@
         async function runAnalysis() {
             try {
                 await apiCall('/analysis', 'POST');
-                alert('✅ Анализ запущен! Результаты появятся ниже.');
+                alert('Анализ запущен! Результаты появятся ниже.');
                 showPage('analysis');
             } catch (error) {
-                alert('❌ Ошибка: ' + error.message);
+                alert('Ошибка: ' + error.message);
             }
         }
 
@@ -249,7 +249,7 @@
                     </div>
                 `;
             } catch (error) {
-                alert('❌ Ошибка: ' + error.message);
+                alert('Ошибка: ' + error.message);
             }
         }
 
@@ -258,13 +258,13 @@
             const btn = document.getElementById('sync-btn');
             if (!btn) return;
             
-            btn.textContent = '⏳ Синхронизация...';
+            btn.textContent = 'Синхронизация...';
             btn.disabled = true;
             
             try {
                 if (!token) {
                     alert('Войдите в систему как администратор');
-                    btn.textContent = '🔄 Обновить вакансии';
+                    btn.textContent = 'Обновить вакансии';
                     btn.disabled = false;
                     return;
                 }
@@ -272,7 +272,7 @@
                 const user = await apiCall('/users/me');
                 if (user.role !== 'admin') {
                     alert('Только администраторы могут обновлять вакансии');
-                    btn.textContent = '🔄 Обновить вакансии';
+                    btn.textContent = 'Обновить вакансии';
                     btn.disabled = false;
                     return;
                 }
@@ -285,16 +285,16 @@
                 });
                 
                 if (response.ok) {
-                    alert('✅ Синхронизация вакансий запущена! Обновите страницу через минуту.');
+                    alert('Синхронизация вакансий запущена! Обновите страницу через минуту.');
                     setTimeout(updateJobsStatus, 3000);
                 } else {
                     const error = await response.json();
-                    alert('❌ Ошибка: ' + (error.detail || 'Неизвестная ошибка'));
+                    alert('Ошибка: ' + (error.detail || 'Неизвестная ошибка'));
                 }
             } catch (error) {
-                alert('❌ Ошибка: ' + error.message);
+                alert('Ошибка: ' + error.message);
             } finally {
-                btn.textContent = '🔄 Обновить вакансии';
+                btn.textContent = 'Обновить вакансии';
                 btn.disabled = false;
             }
         }
@@ -320,14 +320,14 @@
                     
                     if (statusEl) {
                         if (data.is_syncing) {
-                            statusEl.innerHTML = '⏳ Синхронизация выполняется...';
+                            statusEl.innerHTML = 'Синхронизация выполняется...';
                             statusEl.className = 'sync-status syncing';
                         } else if (data.last_sync) {
                             const lastSync = new Date(data.last_sync).toLocaleString();
-                            statusEl.innerHTML = `✅ Последняя синхронизация: ${lastSync}`;
+                            statusEl.innerHTML = 'Последняя синхронизация: ' + lastSync;
                             statusEl.className = 'sync-status';
                         } else {
-                            statusEl.innerHTML = '🔄 Синхронизация не выполнялась';
+                            statusEl.innerHTML = 'Синхронизация не выполнялась';
                             statusEl.className = 'sync-status';
                         }
                     }
@@ -347,14 +347,14 @@
                     </p>
                     <p style="margin: 1rem 0;">Миссия проекта — помочь молодым людям увидеть реальную ценность своих цифровых навыков.</p>
                     <div style="margin-top: 2rem;">
-                        ${!token ? `<button class="btn" onclick="showPage('register')">🚀 Начать</button>` : `<button class="btn" onclick="showPage('profile')">👤 Перейти в профиль</button>`}
+                        ${!token ? `<button class="btn" onclick="showPage('register')">Начать</button>` : `<button class="btn" onclick="showPage('profile')">Перейти в профиль</button>`}
                     </div>
                 </div>
                 <div class="grid-2">
-                    <div class="card"><h3>🤖 Анализ ИИ</h3><p>Загрузите портфолио и получите анализ ваших навыков с рекомендациями.</p></div>
-                    <div class="card"><h3>💼 Каталог специалистов</h3><p>Найдите исполнителей для своих задач или опубликуйте свой профиль.</p></div>
-                    <div class="card"><h3>📊 Агрегатор возможностей</h3><p>Просматривайте вакансии, проектные задачи и фриланс-заказы.</p></div>
-                    <div class="card"><h3>🎯 Рекомендации</h3><p>Получайте персонализированные рекомендации по развитию и трудоустройству.</p></div>
+                    <div class="card"><h3>Анализ ИИ</h3><p>Загрузите портфолио и получите анализ ваших навыков с рекомендациями.</p></div>
+                    <div class="card"><h3>Каталог специалистов</h3><p>Найдите исполнителей для своих задач или опубликуйте свой профиль.</p></div>
+                    <div class="card"><h3>Агрегатор возможностей</h3><p>Просматривайте вакансии, проектные задачи и фриланс-заказы.</p></div>
+                    <div class="card"><h3>Рекомендации</h3><p>Получайте персонализированные рекомендации по развитию и трудоустройству.</p></div>
                 </div>
             `;
         }
@@ -362,7 +362,7 @@
         function renderRegister() {
             return `
                 <div class="card" style="max-width: 500px; margin: 0 auto;">
-                    <h2>📝 Регистрация</h2>
+                    <h2>Регистрация</h2>
                     <form id="register-form" onsubmit="register(event)">
                         <div class="form-group"><label>ФИО</label><input type="text" name="full_name" required></div>
                         <div class="form-group"><label>Email</label><input type="email" name="email" required></div>
@@ -379,7 +379,7 @@
         function renderLogin() {
             return `
                 <div class="card" style="max-width: 400px; margin: 0 auto;">
-                    <h2>🔑 Вход</h2>
+                    <h2>Вход</h2>
                     <form id="login-form" onsubmit="login(event)">
                         <div class="form-group"><label>Email</label><input type="email" name="email" required></div>
                         <div class="form-group"><label>Пароль</label><input type="password" name="password" required></div>
@@ -396,7 +396,7 @@
             
             return `
                 <div class="card">
-                    <h2>👤 Мой профиль</h2>
+                    <h2>Мой профиль</h2>
                     <form id="profile-form" onsubmit="updateProfile(event)">
                         <div class="form-group"><label>ФИО</label><input type="text" name="full_name" value="${currentUser.full_name || ''}"></div>
                         <div class="form-group"><label>Телефон</label><input type="tel" name="phone" value="${currentUser.phone || ''}"></div>
@@ -416,10 +416,10 @@
                             <label>Опубликовать профиль в каталоге</label>
                             <input type="checkbox" name="is_public" ${currentUser.is_public ? 'checked' : ''}>
                         </div>
-                        <button type="submit" class="btn">💾 Обновить профиль</button>
+                        <button type="submit" class="btn">Обновить профиль</button>
                     </form>
                     <div style="margin-top: 1rem;">
-                        <button class="btn btn-outline" onclick="publishProfile()">📢 Опубликовать в каталоге</button>
+                        <button class="btn btn-outline" onclick="publishProfile()">Опубликовать в каталоге</button>
                     </div>
                 </div>
             `;
@@ -430,33 +430,33 @@
                 const portfolioItems = await apiCall('/portfolio');
                 return `
                     <div class="card">
-                        <h2>📁 Мое портфолио</h2>
+                        <h2>Мое портфолио</h2>
                         <form id="portfolio-form" enctype="multipart/form-data" onsubmit="uploadPortfolio(event)">
                             <div class="form-group"><label>Название работы</label><input type="text" name="title" required></div>
                             <div class="form-group"><label>Описание</label><textarea name="description"></textarea></div>
                             <div class="form-group"><label>Категория</label>
                                 <select name="category">
-                                    <option value="design">🎨 Дизайн</option>
-                                    <option value="development">💻 Разработка</option>
-                                    <option value="video">🎬 Видео</option>
-                                    <option value="smm">📱 SMM</option>
-                                    <option value="copywriting">✍️ Копирайтинг</option>
-                                    <option value="other">📌 Другое</option>
+                                    <option value="design">Дизайн</option>
+                                    <option value="development">Разработка</option>
+                                    <option value="video">Видео</option>
+                                    <option value="smm">SMM</option>
+                                    <option value="copywriting">Копирайтинг</option>
+                                    <option value="other">Другое</option>
                                 </select>
                             </div>
                             <div class="form-group"><label>Файл</label><input type="file" name="file" required></div>
-                            <button type="submit" class="btn">📤 Загрузить</button>
+                            <button type="submit" class="btn">Загрузить</button>
                         </form>
                     </div>
                     <div class="card">
-                        <h3>📋 Загруженные материалы</h3>
+                        <h3>Загруженные материалы</h3>
                         <div id="portfolio-items">
                             ${portfolioItems && portfolioItems.length > 0 
                                 ? portfolioItems.map(item => `
                                     <div style="border-bottom: 1px solid #eee; padding: 0.5rem 0;">
                                         <strong>${item.title}</strong> (${item.category || 'Без категории'})
-                                        ${item.is_public ? '🌐 Публичный' : '🔒 Приватный'}
-                                        <button onclick="deletePortfolioItem('${item.id}')" style="float: right; background: #ef4444; color: white; border: none; padding: 0.3rem 0.8rem; border-radius: 4px; cursor: pointer;">🗑️</button>
+                                        ${item.is_public ? 'Публичный' : 'Приватный'}
+                                        <button onclick="deletePortfolioItem('${item.id}')" style="float: right; background: #ef4444; color: white; border: none; padding: 0.3rem 0.8rem; border-radius: 4px; cursor: pointer;">Удалить</button>
                                     </div>
                                 `).join('')
                                 : 'Нет загруженных материалов'
@@ -475,32 +475,32 @@
                 const latest = analyses && analyses.length > 0 ? analyses[0] : null;
                 return `
                     <div class="card">
-                        <h2>🤖 Анализ портфолио</h2>
-                        <button class="btn" onclick="runAnalysis()">🚀 Запустить AI-анализ</button>
+                        <h2>Анализ портфолио</h2>
+                        <button class="btn" onclick="runAnalysis()">Запустить AI-анализ</button>
                         ${latest ? `
                             <div style="margin-top: 2rem;">
-                                <h3>📊 Результаты анализа (${new Date(latest.created_at).toLocaleString()})</h3>
+                                <h3>Результаты анализа (${new Date(latest.created_at).toLocaleString()})</h3>
                                 <div class="analysis-result">
-                                    <strong>💪 Сильные стороны:</strong>
+                                    <strong>Сильные стороны:</strong>
                                     <ul>${(latest.strengths || ['Не определено']).map(s => `<li>${s}</li>`).join('')}</ul>
                                 </div>
                                 <div class="analysis-result weakness">
-                                    <strong>📈 Зоны роста:</strong>
+                                    <strong>Зоны роста:</strong>
                                     <ul>${(latest.weaknesses || ['Не обнаружено']).map(s => `<li>${s}</li>`).join('')}</ul>
                                 </div>
                                 <div class="analysis-result">
-                                    <strong>💡 Рекомендации:</strong>
+                                    <strong>Рекомендации:</strong>
                                     <ul>${(latest.recommendations || ['Нет рекомендаций']).map(s => `<li>${s}</li>`).join('')}</ul>
                                 </div>
                                 <div class="analysis-result">
-                                    <strong>🎯 Рекомендуемые услуги:</strong>
+                                    <strong>Рекомендуемые услуги:</strong>
                                     <ul>${(latest.suggested_services || ['Нет предложений']).map(s => `<li>${s}</li>`).join('')}</ul>
                                 </div>
                             </div>
                         ` : '<p>Анализ еще не проведен. Нажмите кнопку выше.</p>'}
                     </div>
                     <div class="card">
-                        <h3>📋 Карточка компетенций</h3>
+                        <h3>Карточка компетенций</h3>
                         <button class="btn btn-outline" onclick="showCompetencyCard()">Показать карточку</button>
                         <div id="competency-card"></div>
                     </div>
@@ -515,7 +515,7 @@
                 const recs = await apiCall('/jobs/recommended');
                 return `
                     <div class="card">
-                        <h2>🎯 Рекомендованные вакансии</h2>
+                        <h2>Рекомендованные вакансии</h2>
                         ${recs && recs.length > 0 
                             ? recs.map(rec => `
                                 <div style="border-bottom: 1px solid #eee; padding: 1rem 0;">
@@ -542,7 +542,7 @@
                 const specialists = await apiCall('/specialists');
                 return `
                     <div class="card">
-                        <h2>👥 Каталог специалистов</h2>
+                        <h2>Каталог специалистов</h2>
                         ${specialists && specialists.length > 0 
                             ? specialists.map(user => `
                                 <div style="border-bottom: 1px solid #eee; padding: 1rem 0;">
@@ -565,19 +565,18 @@
             try {
                 const jobs = await apiCall('/jobs');
                 
-                // Формируем HTML с статусом синхронизации
                 let statusHTML = '';
                 if (token) {
                     statusHTML = `
                         <div id="sync-status-container">
-                            <div id="sync-status-text" class="sync-status">🔄 Загрузка статуса...</div>
+                            <div id="sync-status-text" class="sync-status">Загрузка статуса...</div>
                             <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem;">
                                 <div>
-                                    <strong>📊 Всего вакансий:</strong> <span id="total-jobs">0</span>
+                                    <strong>Всего вакансий:</strong> <span id="total-jobs">0</span>
                                     (HeadHunter: <span id="hh-jobs">0</span>)
                                 </div>
                                 <button class="btn btn-success" id="sync-btn" onclick="syncJobs()">
-                                    🔄 Обновить вакансии
+                                    Обновить вакансии
                                 </button>
                             </div>
                         </div>
@@ -586,26 +585,26 @@
                 
                 return `
                     <div class="card">
-                        <h2>💼 Вакансии и задачи</h2>
+                        <h2>Вакансии и задачи</h2>
                         ${statusHTML}
                         <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;">
                             <input type="text" placeholder="Поиск по ключевым словам..." id="job-search" 
                                    oninput="filterJobs()" style="flex: 1; padding: 0.7rem; border: 1px solid #ddd; border-radius: 8px;">
                             <select id="job-category-filter" onchange="filterJobs()">
                                 <option value="">Все категории</option>
-                                <option value="development">💻 Разработка</option>
-                                <option value="design">🎨 Дизайн</option>
-                                <option value="smm">📱 SMM</option>
-                                <option value="video">🎬 Видео</option>
-                                <option value="copywriting">✍️ Копирайтинг</option>
-                                <option value="analytics">📊 Аналитика</option>
-                                <option value="project_management">📋 Управление проектами</option>
-                                <option value="quality_assurance">🔍 Тестирование</option>
-                                <option value="devops">⚙️ DevOps</option>
-                                <option value="hr">👥 HR</option>
-                                <option value="sales">💰 Продажи</option>
-                                <option value="finance">📈 Финансы</option>
-                                <option value="legal">⚖️ Юриспруденция</option>
+                                <option value="development">Разработка</option>
+                                <option value="design">Дизайн</option>
+                                <option value="smm">SMM</option>
+                                <option value="video">Видео</option>
+                                <option value="copywriting">Копирайтинг</option>
+                                <option value="analytics">Аналитика</option>
+                                <option value="project_management">Управление проектами</option>
+                                <option value="quality_assurance">Тестирование</option>
+                                <option value="devops">DevOps</option>
+                                <option value="hr">HR</option>
+                                <option value="sales">Продажи</option>
+                                <option value="finance">Финансы</option>
+                                <option value="legal">Юриспруденция</option>
                             </select>
                             <button class="btn" onclick="filterJobs()">Применить</button>
                         </div>
@@ -613,25 +612,26 @@
                             ${jobs && jobs.length > 0 
                                 ? jobs.map(job => {
                                     const employmentClass = job.employment_type || 'full_time';
-                                    const categoryEmoji = {
-                                        'development': '💻',
-                                        'design': '🎨',
-                                        'smm': '📱',
-                                        'video': '🎬',
-                                        'copywriting': '✍️',
-                                        'analytics': '📊',
-                                        'project_management': '📋',
-                                        'quality_assurance': '🔍',
-                                        'devops': '⚙️',
-                                        'hr': '👥',
-                                        'sales': '💰',
-                                        'finance': '📈',
-                                        'legal': '⚖️'
-                                    }[job.category] || '📌';
+                                    const categoryLabels = {
+                                        'development': 'Разработка',
+                                        'design': 'Дизайн',
+                                        'smm': 'SMM',
+                                        'video': 'Видео',
+                                        'copywriting': 'Копирайтинг',
+                                        'analytics': 'Аналитика',
+                                        'project_management': 'Управление проектами',
+                                        'quality_assurance': 'Тестирование',
+                                        'devops': 'DevOps',
+                                        'hr': 'HR',
+                                        'sales': 'Продажи',
+                                        'finance': 'Финансы',
+                                        'legal': 'Юриспруденция'
+                                    };
+                                    const categoryLabel = categoryLabels[job.category] || 'Другое';
                                     
                                     return `
                                         <div class="job-card" data-category="${job.category || ''}" data-title="${job.title || ''}" data-company="${job.company || ''}">
-                                            <h3>${categoryEmoji} ${job.title}</h3>
+                                            <h3>${categoryLabel} ${job.title}</h3>
                                             <p><strong>Компания:</strong> ${job.company || 'Не указана'}</p>
                                             <p><strong>Описание:</strong> ${job.description ? job.description.substring(0, 200) + '...' : 'Нет описания'}</p>
                                             <p><strong>Местоположение:</strong> ${job.location || 'Не указано'}</p>
@@ -659,7 +659,6 @@
             const authLinks = document.getElementById('auth-links');
             const userLinks = document.getElementById('user-links');
 
-            // Обновляем навигацию
             if (token) {
                 authLinks.classList.add('hidden');
                 userLinks.classList.remove('hidden');
@@ -669,7 +668,6 @@
                 userLinks.classList.add('hidden');
             }
 
-            // Рендерим страницу
             try {
                 switch (page) {
                     case 'home':
@@ -702,7 +700,6 @@
                         break;
                     case 'jobs':
                         content.innerHTML = await renderJobs();
-                        // Обновляем статус после рендеринга
                         if (token) {
                             setTimeout(updateJobsStatus, 300);
                         }
