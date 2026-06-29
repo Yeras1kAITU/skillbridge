@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Float, ForeignKey, JSON, Date
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from .database import Base
 import uuid
 
@@ -10,7 +11,7 @@ def generate_uuid():
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(String, primary_key=True, default=generate_uuid)
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     full_name = Column(String(255), nullable=False)
     email = Column(String(255), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
@@ -48,12 +49,11 @@ class User(Base):
     ai_analyses = relationship("AIAnalysis", back_populates="owner", cascade="all, delete-orphan")
     recommendations = relationship("Recommendation", back_populates="user", cascade="all, delete-orphan")
 
-
 class Portfolio(Base):
     __tablename__ = "portfolio"
-
-    id = Column(String, primary_key=True, default=generate_uuid)
-    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     file_path = Column(String(500), nullable=False)
@@ -61,40 +61,39 @@ class Portfolio(Base):
     category = Column(String(100), nullable=True)
     is_public = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-
+    
     owner = relationship("User", back_populates="portfolio_items")
 
 
 class Skill(Base):
     __tablename__ = "skills"
-
-    id = Column(String, primary_key=True, default=generate_uuid)
-    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     skill_name = Column(String(100), nullable=False)
     level = Column(String(50), nullable=True)
     source = Column(String(50), default="manual")
-
+    
     owner = relationship("User", back_populates="skills")
 
 
 class AIAnalysis(Base):
     __tablename__ = "ai_analysis"
-
-    id = Column(String, primary_key=True, default=generate_uuid)
-    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     strengths = Column(JSON, nullable=True)
     weaknesses = Column(JSON, nullable=True)
     recommendations = Column(JSON, nullable=True)
     suggested_services = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-
+    
     owner = relationship("User", back_populates="ai_analyses")
-
 
 class Job(Base):
     __tablename__ = "jobs"
-
-    id = Column(String, primary_key=True, default=generate_uuid)
+    
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     title = Column(String(255), nullable=False)
     company = Column(String(255), nullable=True)
     description = Column(Text, nullable=True)
@@ -104,18 +103,17 @@ class Job(Base):
     category = Column(String(100), nullable=True)
     employment_type = Column(String(50), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-
+    
     recommendations = relationship("Recommendation", back_populates="job", cascade="all, delete-orphan")
-
 
 class Recommendation(Base):
     __tablename__ = "recommendations"
-
-    id = Column(String, primary_key=True, default=generate_uuid)
-    user_id = Column(String, ForeignKey("users.id"), nullable=False)
-    job_id = Column(String, ForeignKey("jobs.id"), nullable=False)
+    
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    job_id = Column(PG_UUID(as_uuid=True), ForeignKey("jobs.id"), nullable=False)
     relevance_score = Column(Float, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-
+    
     user = relationship("User", back_populates="recommendations")
     job = relationship("Job", back_populates="recommendations")

@@ -20,6 +20,8 @@
         .btn:hover { background: #c73652; transform: scale(1.02); }
         .btn-outline { background: transparent; border: 2px solid #e94560; color: #e94560; }
         .btn-outline:hover { background: #e94560; color: white; }
+        .btn-success { background: #22c55e; }
+        .btn-success:hover { background: #16a34a; }
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
         @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
         .form-group { margin-bottom: 1rem; }
@@ -29,6 +31,17 @@
         .analysis-result.weakness { background: #fef2f2; border-left-color: #ef4444; }
         .hidden { display: none !important; }
         .skill-tag { background: #e0e7ff; padding: 0.3rem 0.8rem; border-radius: 20px; display: inline-block; margin: 0.2rem; }
+        .sync-status { background: #f0fdf4; border-left: 4px solid #22c55e; padding: 1rem; margin-bottom: 1rem; border-radius: 8px; }
+        .sync-status.syncing { background: #fef3c7; border-left-color: #f59e0b; }
+        .job-card { border-bottom: 1px solid #eee; padding: 1rem 0; }
+        .job-card:last-child { border-bottom: none; }
+        .job-card h3 { color: #16213e; margin-bottom: 0.5rem; }
+        .job-tag { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.8rem; margin-right: 0.5rem; }
+        .job-tag.full_time { background: #dbeafe; color: #1d4ed8; }
+        .job-tag.part_time { background: #fef3c7; color: #b45309; }
+        .job-tag.project { background: #d1fae5; color: #065f46; }
+        .job-tag.remote { background: #e0e7ff; color: #4338ca; }
+        .job-tag.office { background: #f3e8ff; color: #6b21a8; }
     </style>
 </head>
 <body>
@@ -66,7 +79,7 @@
         // === ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ===
         let currentUser = null;
         let token = localStorage.getItem('access_token');
-        const API_BASE = '';
+        const API_BASE = 'https://skillbridge-backend-31qr.onrender.com';
 
         // === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
         function showLoading() {
@@ -240,6 +253,90 @@
             }
         }
 
+        // === СИНХРОНИЗАЦИЯ ВАКАНСИЙ ===
+        async function syncJobs() {
+            const btn = document.getElementById('sync-btn');
+            if (!btn) return;
+            
+            btn.textContent = '⏳ Синхронизация...';
+            btn.disabled = true;
+            
+            try {
+                if (!token) {
+                    alert('Войдите в систему как администратор');
+                    btn.textContent = '🔄 Обновить вакансии';
+                    btn.disabled = false;
+                    return;
+                }
+                
+                const user = await apiCall('/users/me');
+                if (user.role !== 'admin') {
+                    alert('Только администраторы могут обновлять вакансии');
+                    btn.textContent = '🔄 Обновить вакансии';
+                    btn.disabled = false;
+                    return;
+                }
+                
+                const response = await fetch(`${API_BASE}/jobs/sync-hh`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (response.ok) {
+                    alert('✅ Синхронизация вакансий запущена! Обновите страницу через минуту.');
+                    setTimeout(updateJobsStatus, 3000);
+                } else {
+                    const error = await response.json();
+                    alert('❌ Ошибка: ' + (error.detail || 'Неизвестная ошибка'));
+                }
+            } catch (error) {
+                alert('❌ Ошибка: ' + error.message);
+            } finally {
+                btn.textContent = '🔄 Обновить вакансии';
+                btn.disabled = false;
+            }
+        }
+
+        async function updateJobsStatus() {
+            try {
+                if (!token) return;
+                
+                const response = await fetch(`${API_BASE}/jobs/sync-status`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const totalEl = document.getElementById('total-jobs');
+                    const hhEl = document.getElementById('hh-jobs');
+                    const statusEl = document.getElementById('sync-status-text');
+                    
+                    if (totalEl) totalEl.textContent = data.total_jobs || 0;
+                    if (hhEl) hhEl.textContent = data.by_source?.HeadHunter || 0;
+                    
+                    if (statusEl) {
+                        if (data.is_syncing) {
+                            statusEl.innerHTML = '⏳ Синхронизация выполняется...';
+                            statusEl.className = 'sync-status syncing';
+                        } else if (data.last_sync) {
+                            const lastSync = new Date(data.last_sync).toLocaleString();
+                            statusEl.innerHTML = `✅ Последняя синхронизация: ${lastSync}`;
+                            statusEl.className = 'sync-status';
+                        } else {
+                            statusEl.innerHTML = '🔄 Синхронизация не выполнялась';
+                            statusEl.className = 'sync-status';
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Ошибка обновления статуса:', error);
+            }
+        }
+
         // === СТРАНИЦЫ ===
         function renderHome() {
             return `
@@ -254,10 +351,10 @@
                     </div>
                 </div>
                 <div class="grid-2">
-                    <div class="card"><h3> Анализ ИИ</h3><p>Загрузите портфолио и получите анализ ваших навыков с рекомендациями.</p></div>
-                    <div class="card"><h3> Каталог специалистов</h3><p>Найдите исполнителей для своих задач или опубликуйте свой профиль.</p></div>
-                    <div class="card"><h3> Агрегатор возможностей</h3><p>Просматривайте вакансии, проектные задачи и фриланс-заказы.</p></div>
-                    <div class="card"><h3> Рекомендации</h3><p>Получайте персонализированные рекомендации по развитию и трудоустройству.</p></div>
+                    <div class="card"><h3>🤖 Анализ ИИ</h3><p>Загрузите портфолио и получите анализ ваших навыков с рекомендациями.</p></div>
+                    <div class="card"><h3>💼 Каталог специалистов</h3><p>Найдите исполнителей для своих задач или опубликуйте свой профиль.</p></div>
+                    <div class="card"><h3>📊 Агрегатор возможностей</h3><p>Просматривайте вакансии, проектные задачи и фриланс-заказы.</p></div>
+                    <div class="card"><h3>🎯 Рекомендации</h3><p>Получайте персонализированные рекомендации по развитию и трудоустройству.</p></div>
                 </div>
             `;
         }
@@ -265,7 +362,7 @@
         function renderRegister() {
             return `
                 <div class="card" style="max-width: 500px; margin: 0 auto;">
-                    <h2> Регистрация</h2>
+                    <h2>📝 Регистрация</h2>
                     <form id="register-form" onsubmit="register(event)">
                         <div class="form-group"><label>ФИО</label><input type="text" name="full_name" required></div>
                         <div class="form-group"><label>Email</label><input type="email" name="email" required></div>
@@ -333,18 +430,18 @@
                 const portfolioItems = await apiCall('/portfolio');
                 return `
                     <div class="card">
-                        <h2> Мое портфолио</h2>
+                        <h2>📁 Мое портфолио</h2>
                         <form id="portfolio-form" enctype="multipart/form-data" onsubmit="uploadPortfolio(event)">
                             <div class="form-group"><label>Название работы</label><input type="text" name="title" required></div>
                             <div class="form-group"><label>Описание</label><textarea name="description"></textarea></div>
                             <div class="form-group"><label>Категория</label>
                                 <select name="category">
-                                    <option value="design"> Дизайн</option>
-                                    <option value="development"> Разработка</option>
-                                    <option value="video"> Видео</option>
-                                    <option value="smm"> SMM</option>
-                                    <option value="copywriting">️ Копирайтинг</option>
-                                    <option value="other"> Другое</option>
+                                    <option value="design">🎨 Дизайн</option>
+                                    <option value="development">💻 Разработка</option>
+                                    <option value="video">🎬 Видео</option>
+                                    <option value="smm">📱 SMM</option>
+                                    <option value="copywriting">✍️ Копирайтинг</option>
+                                    <option value="other">📌 Другое</option>
                                 </select>
                             </div>
                             <div class="form-group"><label>Файл</label><input type="file" name="file" required></div>
@@ -352,7 +449,7 @@
                         </form>
                     </div>
                     <div class="card">
-                        <h3> Загруженные материалы</h3>
+                        <h3>📋 Загруженные материалы</h3>
                         <div id="portfolio-items">
                             ${portfolioItems && portfolioItems.length > 0 
                                 ? portfolioItems.map(item => `
@@ -382,28 +479,28 @@
                         <button class="btn" onclick="runAnalysis()">🚀 Запустить AI-анализ</button>
                         ${latest ? `
                             <div style="margin-top: 2rem;">
-                                <h3> Результаты анализа (${new Date(latest.created_at).toLocaleString()})</h3>
+                                <h3>📊 Результаты анализа (${new Date(latest.created_at).toLocaleString()})</h3>
                                 <div class="analysis-result">
-                                    <strong> Сильные стороны:</strong>
+                                    <strong>💪 Сильные стороны:</strong>
                                     <ul>${(latest.strengths || ['Не определено']).map(s => `<li>${s}</li>`).join('')}</ul>
                                 </div>
                                 <div class="analysis-result weakness">
-                                    <strong> Зоны роста:</strong>
+                                    <strong>📈 Зоны роста:</strong>
                                     <ul>${(latest.weaknesses || ['Не обнаружено']).map(s => `<li>${s}</li>`).join('')}</ul>
                                 </div>
                                 <div class="analysis-result">
-                                    <strong> Рекомендации:</strong>
+                                    <strong>💡 Рекомендации:</strong>
                                     <ul>${(latest.recommendations || ['Нет рекомендаций']).map(s => `<li>${s}</li>`).join('')}</ul>
                                 </div>
                                 <div class="analysis-result">
-                                    <strong> Рекомендуемые услуги:</strong>
+                                    <strong>🎯 Рекомендуемые услуги:</strong>
                                     <ul>${(latest.suggested_services || ['Нет предложений']).map(s => `<li>${s}</li>`).join('')}</ul>
                                 </div>
                             </div>
                         ` : '<p>Анализ еще не проведен. Нажмите кнопку выше.</p>'}
                     </div>
                     <div class="card">
-                        <h3> Карточка компетенций</h3>
+                        <h3>📋 Карточка компетенций</h3>
                         <button class="btn btn-outline" onclick="showCompetencyCard()">Показать карточку</button>
                         <div id="competency-card"></div>
                     </div>
@@ -445,7 +542,7 @@
                 const specialists = await apiCall('/specialists');
                 return `
                     <div class="card">
-                        <h2> Каталог специалистов</h2>
+                        <h2>👥 Каталог специалистов</h2>
                         ${specialists && specialists.length > 0 
                             ? specialists.map(user => `
                                 <div style="border-bottom: 1px solid #eee; padding: 1rem 0;">
@@ -467,21 +564,88 @@
         async function renderJobs() {
             try {
                 const jobs = await apiCall('/jobs');
+                
+                // Формируем HTML с статусом синхронизации
+                let statusHTML = '';
+                if (token) {
+                    statusHTML = `
+                        <div id="sync-status-container">
+                            <div id="sync-status-text" class="sync-status">🔄 Загрузка статуса...</div>
+                            <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem;">
+                                <div>
+                                    <strong>📊 Всего вакансий:</strong> <span id="total-jobs">0</span>
+                                    (HeadHunter: <span id="hh-jobs">0</span>)
+                                </div>
+                                <button class="btn btn-success" id="sync-btn" onclick="syncJobs()">
+                                    🔄 Обновить вакансии
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+                
                 return `
                     <div class="card">
-                        <h2> Вакансии и задачи</h2>
-                        ${jobs && jobs.length > 0 
-                            ? jobs.map(job => `
-                                <div style="border-bottom: 1px solid #eee; padding: 1rem 0;">
-                                    <h3>${job.title}</h3>
-                                    <p><strong>Компания:</strong> ${job.company || 'Не указана'}</p>
-                                    <p><strong>Описание:</strong> ${job.description || 'Нет описания'}</p>
-                                    <p><strong>Источник:</strong> ${job.source || 'Не указан'}</p>
-                                    ${job.link ? `<a href="${job.link}" target="_blank" class="btn">Подробнее</a>` : ''}
-                                </div>
-                            `).join('')
-                            : 'Нет доступных вакансий'
-                        }
+                        <h2>💼 Вакансии и задачи</h2>
+                        ${statusHTML}
+                        <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;">
+                            <input type="text" placeholder="Поиск по ключевым словам..." id="job-search" 
+                                   oninput="filterJobs()" style="flex: 1; padding: 0.7rem; border: 1px solid #ddd; border-radius: 8px;">
+                            <select id="job-category-filter" onchange="filterJobs()">
+                                <option value="">Все категории</option>
+                                <option value="development">💻 Разработка</option>
+                                <option value="design">🎨 Дизайн</option>
+                                <option value="smm">📱 SMM</option>
+                                <option value="video">🎬 Видео</option>
+                                <option value="copywriting">✍️ Копирайтинг</option>
+                                <option value="analytics">📊 Аналитика</option>
+                                <option value="project_management">📋 Управление проектами</option>
+                                <option value="quality_assurance">🔍 Тестирование</option>
+                                <option value="devops">⚙️ DevOps</option>
+                                <option value="hr">👥 HR</option>
+                                <option value="sales">💰 Продажи</option>
+                                <option value="finance">📈 Финансы</option>
+                                <option value="legal">⚖️ Юриспруденция</option>
+                            </select>
+                            <button class="btn" onclick="filterJobs()">Применить</button>
+                        </div>
+                        <div id="jobs-list">
+                            ${jobs && jobs.length > 0 
+                                ? jobs.map(job => {
+                                    const employmentClass = job.employment_type || 'full_time';
+                                    const categoryEmoji = {
+                                        'development': '💻',
+                                        'design': '🎨',
+                                        'smm': '📱',
+                                        'video': '🎬',
+                                        'copywriting': '✍️',
+                                        'analytics': '📊',
+                                        'project_management': '📋',
+                                        'quality_assurance': '🔍',
+                                        'devops': '⚙️',
+                                        'hr': '👥',
+                                        'sales': '💰',
+                                        'finance': '📈',
+                                        'legal': '⚖️'
+                                    }[job.category] || '📌';
+                                    
+                                    return `
+                                        <div class="job-card" data-category="${job.category || ''}" data-title="${job.title || ''}" data-company="${job.company || ''}">
+                                            <h3>${categoryEmoji} ${job.title}</h3>
+                                            <p><strong>Компания:</strong> ${job.company || 'Не указана'}</p>
+                                            <p><strong>Описание:</strong> ${job.description ? job.description.substring(0, 200) + '...' : 'Нет описания'}</p>
+                                            <p><strong>Местоположение:</strong> ${job.location || 'Не указано'}</p>
+                                            <p>
+                                                <span class="job-tag ${employmentClass}">${employmentClass.replace('_', ' ')}</span>
+                                                <span class="job-tag office">${job.source || 'Не указан'}</span>
+                                            </p>
+                                            ${job.link ? `<a href="${job.link}" target="_blank" class="btn" style="margin-top: 0.5rem;">Подробнее</a>` : ''}
+                                        </div>
+                                    `;
+                                }).join('')
+                                : 'Нет доступных вакансий. Нажмите "Обновить вакансии", чтобы загрузить их с HeadHunter.'
+                            }
+                        </div>
                     </div>
                 `;
             } catch (error) {
@@ -538,6 +702,10 @@
                         break;
                     case 'jobs':
                         content.innerHTML = await renderJobs();
+                        // Обновляем статус после рендеринга
+                        if (token) {
+                            setTimeout(updateJobsStatus, 300);
+                        }
                         break;
                     default:
                         content.innerHTML = '<div class="card"><h2>Страница не найдена</h2></div>';
@@ -545,6 +713,24 @@
             } catch (error) {
                 showError(error.message);
             }
+        }
+
+        // === ФИЛЬТРАЦИЯ ===
+        function filterJobs() {
+            const search = document.getElementById('job-search')?.value.toLowerCase() || '';
+            const category = document.getElementById('job-category-filter')?.value || '';
+            const items = document.querySelectorAll('#jobs-list .job-card');
+            
+            items.forEach(item => {
+                const title = item.dataset.title?.toLowerCase() || '';
+                const company = item.dataset.company?.toLowerCase() || '';
+                const itemCategory = item.dataset.category || '';
+                
+                const matchesSearch = !search || title.includes(search) || company.includes(search);
+                const matchesCategory = !category || itemCategory === category;
+                
+                item.style.display = (matchesSearch && matchesCategory) ? 'block' : 'none';
+            });
         }
 
         // === ИНИЦИАЛИЗАЦИЯ ===

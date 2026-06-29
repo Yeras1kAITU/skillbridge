@@ -1,7 +1,7 @@
 // Глобальные переменные
 let currentUser = null;
 let token = localStorage.getItem('access_token');
-const API_BASE = 'https://skillbridge-backend-31qr.onrender.com'
+const API_BASE = 'https://skillbridge-backend-31qr.onrender.com';
 
 // Показать страницу
 async function showPage(page) {
@@ -9,7 +9,6 @@ async function showPage(page) {
     const authLinks = document.getElementById('auth-links');
     const userLinks = document.getElementById('user-links');
 
-    // Обновляем навигацию в зависимости от авторизации
     if (token) {
         authLinks.style.display = 'none';
         userLinks.style.display = 'inline';
@@ -19,7 +18,6 @@ async function showPage(page) {
         userLinks.style.display = 'none';
     }
 
-    // Загружаем контент
     switch (page) {
         case 'home':
             content.innerHTML = await renderHome();
@@ -51,14 +49,249 @@ async function showPage(page) {
             break;
         case 'jobs':
             content.innerHTML = await renderJobs();
+            if (token) setTimeout(updateJobsStatus, 300);
             break;
         default:
             content.innerHTML = '<h2>Страница не найдена</h2>';
     }
 }
 
-// --- Функции для рендеринга ---
+// --- API вызовы ---
+async function apiCall(endpoint, method = 'GET', body = null, isFormData = false) {
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    if (!isFormData) headers['Content-Type'] = 'application/json';
 
+    const options = { method, headers };
+    if (body) {
+        options.body = isFormData ? body : JSON.stringify(body);
+    }
+
+    const response = await fetch(`${API_BASE}${endpoint}`, options);
+    if (!response.ok) {
+        if (response.status === 401) {
+            localStorage.removeItem('access_token');
+            token = null;
+            showPage('login');
+            throw new Error('Сессия истекла');
+        }
+        const error = await response.json();
+        throw new Error(error.detail || 'Ошибка запроса');
+    }
+    if (response.status === 204) return null;
+    return await response.json();
+}
+
+// --- Авторизация ---
+async function register(event) {
+    event.preventDefault();
+    const form = event.target;
+    const data = Object.fromEntries(new FormData(form));
+    try {
+        await apiCall('/auth/register', 'POST', data);
+        alert('Регистрация успешна! Теперь войдите.');
+        showPage('login');
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function login(event) {
+    event.preventDefault();
+    const form = event.target;
+    const data = Object.fromEntries(new FormData(form));
+    try {
+        const result = await apiCall('/auth/login', 'POST', data);
+        token = result.access_token;
+        localStorage.setItem('access_token', token);
+        await fetchUser();
+        showPage('profile');
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function logout() {
+    localStorage.removeItem('access_token');
+    token = null;
+    currentUser = null;
+    showPage('home');
+}
+
+async function fetchUser() {
+    try {
+        currentUser = await apiCall('/users/me');
+        return currentUser;
+    } catch (error) {
+        console.error('Ошибка загрузки профиля:', error);
+        return null;
+    }
+}
+
+// --- Профиль ---
+async function updateProfile(event) {
+    event.preventDefault();
+    const form = event.target;
+    const data = Object.fromEntries(new FormData(form));
+    data.is_public = data.is_public === 'on';
+    try {
+        await apiCall('/users/me', 'PUT', data);
+        alert('Профиль обновлен');
+        await fetchUser();
+        showPage('profile');
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function publishProfile() {
+    try {
+        await apiCall('/specialists/publish', 'POST');
+        alert('Профиль опубликован в каталоге');
+        await fetchUser();
+        showPage('profile');
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+// --- Портфолио ---
+async function uploadPortfolio(event) {
+    event.preventDefault();
+    const form = event.target;
+    const formData = new FormData(form);
+    try {
+        await apiCall('/portfolio', 'POST', formData, true);
+        alert('Материал загружен');
+        showPage('portfolio');
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function deletePortfolioItem(id) {
+    if (!confirm('Удалить этот материал?')) return;
+    try {
+        await apiCall(`/portfolio/${id}`, 'DELETE');
+        showPage('portfolio');
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+// --- Анализ ---
+async function runAnalysis() {
+    try {
+        await apiCall('/analysis', 'POST');
+        alert('Анализ запущен! Результаты появятся ниже.');
+        showPage('analysis');
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function showCompetencyCard() {
+    try {
+        const data = await apiCall('/analysis/competencies');
+        const cardDiv = document.getElementById('competency-card');
+        cardDiv.innerHTML = `
+            <div class="analysis-result">
+                <h4>Карточка компетенций</h4>
+                <p><strong>Сильные стороны:</strong> ${(data.strengths || ['Не определено']).join(', ')}</p>
+                <p><strong>Зоны роста:</strong> ${(data.weaknesses || ['Не обнаружено']).join(', ')}</p>
+                <p><strong>Рекомендуемые услуги:</strong> ${(data.suggested_services || ['Нет']).join(', ')}</p>
+            </div>
+        `;
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+// --- Синхронизация вакансий ---
+async function syncJobs() {
+    const btn = document.getElementById('sync-btn');
+    if (!btn) return;
+    
+    btn.textContent = '⏳ Синхронизация...';
+    btn.disabled = true;
+    
+    try {
+        if (!token) {
+            alert('Войдите в систему как администратор');
+            btn.textContent = '🔄 Обновить вакансии';
+            btn.disabled = false;
+            return;
+        }
+        
+        const user = await apiCall('/users/me');
+        if (user.role !== 'admin') {
+            alert('Только администраторы могут обновлять вакансии');
+            btn.textContent = '🔄 Обновить вакансии';
+            btn.disabled = false;
+            return;
+        }
+        
+        const response = await fetch(`${API_BASE}/jobs/sync-hh`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (response.ok) {
+            alert('✅ Синхронизация вакансий запущена! Обновите страницу через минуту.');
+            setTimeout(updateJobsStatus, 3000);
+        } else {
+            const error = await response.json();
+            alert('❌ Ошибка: ' + (error.detail || 'Неизвестная ошибка'));
+        }
+    } catch (error) {
+        alert('❌ Ошибка: ' + error.message);
+    } finally {
+        btn.textContent = '🔄 Обновить вакансии';
+        btn.disabled = false;
+    }
+}
+
+async function updateJobsStatus() {
+    try {
+        if (!token) return;
+        
+        const response = await fetch(`${API_BASE}/jobs/sync-status`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            const totalEl = document.getElementById('total-jobs');
+            const hhEl = document.getElementById('hh-jobs');
+            const statusEl = document.getElementById('sync-status-text');
+            
+            if (totalEl) totalEl.textContent = data.total_jobs || 0;
+            if (hhEl) hhEl.textContent = data.by_source?.HeadHunter || 0;
+            
+            if (statusEl) {
+                if (data.is_syncing) {
+                    statusEl.innerHTML = '⏳ Синхронизация выполняется...';
+                    statusEl.className = 'sync-status syncing';
+                } else if (data.last_sync) {
+                    const lastSync = new Date(data.last_sync).toLocaleString();
+                    statusEl.innerHTML = `✅ Последняя синхронизация: ${lastSync}`;
+                    statusEl.className = 'sync-status';
+                } else {
+                    statusEl.innerHTML = '🔄 Синхронизация не выполнялась';
+                    statusEl.className = 'sync-status';
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Ошибка обновления статуса:', error);
+    }
+}
+
+// --- Рендеринг страниц ---
 async function renderHome() {
     return `
         <div class="card" style="text-align: center; padding: 3rem;">
@@ -282,194 +515,98 @@ async function renderCatalog() {
 }
 
 async function renderJobs() {
-    const jobs = await apiCall('/jobs');
-    return `
-        <div class="card">
-            <h2>Вакансии и задачи</h2>
-            <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;">
-                <select id="job-category-filter" onchange="filterJobs()">
-                    <option value="">Все категории</option>
-                    <option value="development">Разработка</option>
-                    <option value="design">Дизайн</option>
-                    <option value="smm">SMM</option>
-                    <option value="video">Видео</option>
-                    <option value="copywriting">Копирайтинг</option>
-                </select>
-                <button class="btn" onclick="filterJobs()">Применить</button>
-            </div>
-            <div id="jobs-list">
-                ${jobs && jobs.length > 0
-        ? jobs.map(job => `
-                        <div style="border-bottom: 1px solid #eee; padding: 1rem 0;">
-                            <h3>${job.title}</h3>
-                            <p><strong>Компания:</strong> ${job.company || 'Не указана'}</p>
-                            <p><strong>Описание:</strong> ${job.description || 'Нет описания'}</p>
-                            <p><strong>Источник:</strong> ${job.source || 'Не указан'}</p>
-                            ${job.link ? `<a href="${job.link}" target="_blank" class="btn">Подробнее</a>` : ''}
+    try {
+        const jobs = await apiCall('/jobs');
+        
+        let statusHTML = '';
+        if (token) {
+            statusHTML = `
+                <div id="sync-status-container">
+                    <div id="sync-status-text" class="sync-status">🔄 Загрузка статуса...</div>
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem;">
+                        <div>
+                            <strong>📊 Всего вакансий:</strong> <span id="total-jobs">0</span>
+                            (HeadHunter: <span id="hh-jobs">0</span>)
                         </div>
-                    `).join('')
-        : 'Нет доступных вакансий'
-    }
-            </div>
-        </div>
-    `;
-}
-
-// --- API вызовы ---
-
-async function apiCall(endpoint, method = 'GET', body = null, isFormData = false) {
-    const headers = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    if (!isFormData) headers['Content-Type'] = 'application/json';
-
-    const options = { method, headers };
-    if (body) {
-        options.body = isFormData ? body : JSON.stringify(body);
-    }
-
-    const response = await fetch(`${API_BASE}${endpoint}`, options);
-    if (!response.ok) {
-        if (response.status === 401) {
-            localStorage.removeItem('access_token');
-            token = null;
-            showPage('login');
-            throw new Error('Сессия истекла');
+                        <button class="btn btn-success" id="sync-btn" onclick="syncJobs()">
+                            🔄 Обновить вакансии
+                        </button>
+                    </div>
+                </div>
+            `;
         }
-        const error = await response.json();
-        throw new Error(error.detail || 'Ошибка запроса');
-    }
-    if (response.status === 204) return null;
-    return await response.json();
-}
-
-// Авторизация
-async function register(event) {
-    event.preventDefault();
-    const form = event.target;
-    const data = Object.fromEntries(new FormData(form));
-    try {
-        await apiCall('/auth/register', 'POST', data);
-        alert('Регистрация успешна! Теперь войдите.');
-        showPage('login');
-    } catch (error) {
-        alert(error.message);
-    }
-}
-
-async function login(event) {
-    event.preventDefault();
-    const form = event.target;
-    const data = Object.fromEntries(new FormData(form));
-    try {
-        const result = await apiCall('/auth/login', 'POST', data);
-        token = result.access_token;
-        localStorage.setItem('access_token', token);
-        await fetchUser();
-        showPage('profile');
-    } catch (error) {
-        alert(error.message);
-    }
-}
-
-async function logout() {
-    localStorage.removeItem('access_token');
-    token = null;
-    currentUser = null;
-    showPage('home');
-}
-
-async function fetchUser() {
-    try {
-        currentUser = await apiCall('/users/me');
-        return currentUser;
-    } catch (error) {
-        console.error('Ошибка загрузки профиля:', error);
-        return null;
-    }
-}
-
-// Профиль
-async function updateProfile(event) {
-    event.preventDefault();
-    const form = event.target;
-    const data = Object.fromEntries(new FormData(form));
-    data.is_public = data.is_public === 'on';
-    try {
-        await apiCall('/users/me', 'PUT', data);
-        alert('Профиль обновлен');
-        await fetchUser();
-        showPage('profile');
-    } catch (error) {
-        alert(error.message);
-    }
-}
-
-async function publishProfile() {
-    try {
-        await apiCall('/specialists/publish', 'POST');
-        alert('Профиль опубликован в каталоге');
-        await fetchUser();
-        showPage('profile');
-    } catch (error) {
-        alert(error.message);
-    }
-}
-
-// Портфолио
-async function uploadPortfolio(event) {
-    event.preventDefault();
-    const form = event.target;
-    const formData = new FormData(form);
-    try {
-        await apiCall('/portfolio', 'POST', formData, true);
-        alert('Материал загружен');
-        showPage('portfolio');
-    } catch (error) {
-        alert(error.message);
-    }
-}
-
-async function deletePortfolioItem(id) {
-    if (!confirm('Удалить этот материал?')) return;
-    try {
-        await apiCall(`/portfolio/${id}`, 'DELETE');
-        showPage('portfolio');
-    } catch (error) {
-        alert(error.message);
-    }
-}
-
-// Анализ
-async function runAnalysis() {
-    try {
-        await apiCall('/analysis', 'POST');
-        alert('Анализ запущен! Результаты появятся ниже.');
-        showPage('analysis');
-    } catch (error) {
-        alert(error.message);
-    }
-}
-
-async function showCompetencyCard() {
-    try {
-        const data = await apiCall('/analysis/competencies');
-        const cardDiv = document.getElementById('competency-card');
-        cardDiv.innerHTML = `
-            <div class="analysis-result">
-                <h4>Карточка компетенций</h4>
-                <p><strong>Сильные стороны:</strong> ${(data.strengths || ['Не определено']).join(', ')}</p>
-                <p><strong>Зоны роста:</strong> ${(data.weaknesses || ['Не обнаружено']).join(', ')}</p>
-                <p><strong>Рекомендуемые услуги:</strong> ${(data.suggested_services || ['Нет']).join(', ')}</p>
+        
+        return `
+            <div class="card">
+                <h2>Вакансии и задачи</h2>
+                ${statusHTML}
+                <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;">
+                    <input type="text" placeholder="Поиск по ключевым словам..." id="job-search" 
+                           oninput="filterJobs()" style="flex: 1; padding: 0.7rem; border: 1px solid #ddd; border-radius: 8px;">
+                    <select id="job-category-filter" onchange="filterJobs()">
+                        <option value="">Все категории</option>
+                        <option value="development">💻 Разработка</option>
+                        <option value="design">🎨 Дизайн</option>
+                        <option value="smm">📱 SMM</option>
+                        <option value="video">🎬 Видео</option>
+                        <option value="copywriting">✍️ Копирайтинг</option>
+                        <option value="analytics">📊 Аналитика</option>
+                        <option value="project_management">📋 Управление проектами</option>
+                        <option value="quality_assurance">🔍 Тестирование</option>
+                        <option value="devops">⚙️ DevOps</option>
+                        <option value="hr">👥 HR</option>
+                        <option value="sales">💰 Продажи</option>
+                        <option value="finance">📈 Финансы</option>
+                        <option value="legal">⚖️ Юриспруденция</option>
+                    </select>
+                    <button class="btn" onclick="filterJobs()">Применить</button>
+                </div>
+                <div id="jobs-list">
+                    ${jobs && jobs.length > 0 
+                        ? jobs.map(job => {
+                            const employmentClass = job.employment_type || 'full_time';
+                            const categoryEmoji = {
+                                'development': '💻',
+                                'design': '🎨',
+                                'smm': '📱',
+                                'video': '🎬',
+                                'copywriting': '✍️',
+                                'analytics': '📊',
+                                'project_management': '📋',
+                                'quality_assurance': '🔍',
+                                'devops': '⚙️',
+                                'hr': '👥',
+                                'sales': '💰',
+                                'finance': '📈',
+                                'legal': '⚖️'
+                            }[job.category] || '📌';
+                            
+                            return `
+                                <div class="job-card" data-category="${job.category || ''}" data-title="${job.title || ''}" data-company="${job.company || ''}">
+                                    <h3>${categoryEmoji} ${job.title}</h3>
+                                    <p><strong>Компания:</strong> ${job.company || 'Не указана'}</p>
+                                    <p><strong>Описание:</strong> ${job.description ? job.description.substring(0, 200) + '...' : 'Нет описания'}</p>
+                                    <p><strong>Местоположение:</strong> ${job.location || 'Не указано'}</p>
+                                    <p>
+                                        <span class="job-tag ${employmentClass}">${employmentClass.replace('_', ' ')}</span>
+                                        <span class="job-tag office">${job.source || 'Не указан'}</span>
+                                    </p>
+                                    ${job.link ? `<a href="${job.link}" target="_blank" class="btn" style="margin-top: 0.5rem;">Подробнее</a>` : ''}
+                                </div>
+                            `;
+                        }).join('')
+                        : 'Нет доступных вакансий. Нажмите "Обновить вакансии", чтобы загрузить их с HeadHunter.'
+                    }
+                </div>
             </div>
         `;
     } catch (error) {
-        alert(error.message);
+        return `<div class="card"><p>Ошибка загрузки вакансий: ${error.message}</p></div>`;
     }
 }
 
-// Каталог и вакансии (фильтрация)
+// --- Фильтрация ---
 function filterCatalog() {
-    // Простая фильтрация на клиенте (для MVP)
     const city = document.getElementById('city-filter').value.toLowerCase();
     const level = document.getElementById('level-filter').value;
     const items = document.querySelectorAll('#catalog-list > div');
@@ -482,16 +619,23 @@ function filterCatalog() {
 }
 
 function filterJobs() {
-    const category = document.getElementById('job-category-filter').value;
-    const items = document.querySelectorAll('#jobs-list > div');
+    const search = document.getElementById('job-search')?.value.toLowerCase() || '';
+    const category = document.getElementById('job-category-filter')?.value || '';
+    const items = document.querySelectorAll('#jobs-list .job-card');
+    
     items.forEach(item => {
-        const text = item.innerText.toLowerCase();
-        const show = !category || text.includes(category);
-        item.style.display = show ? 'block' : 'none';
+        const title = item.dataset.title?.toLowerCase() || '';
+        const company = item.dataset.company?.toLowerCase() || '';
+        const itemCategory = item.dataset.category || '';
+        
+        const matchesSearch = !search || title.includes(search) || company.includes(search);
+        const matchesCategory = !category || itemCategory === category;
+        
+        item.style.display = (matchesSearch && matchesCategory) ? 'block' : 'none';
     });
 }
 
-// Просмотр специалиста
+// --- Просмотр специалиста ---
 async function viewSpecialist(id) {
     try {
         const user = await apiCall(`/specialists/${id}`);

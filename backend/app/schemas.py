@@ -133,9 +133,6 @@ class AIAnalysisResponse(BaseModel):
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
-class AIAnalysisResult(AIAnalysisResponse):
-    pass
-
 # --- Jobs ---
 class JobResponse(BaseModel):
     id: UUID
