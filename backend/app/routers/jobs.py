@@ -18,6 +18,188 @@ _sync_status = {
 }
 
 
+# ==================== СПЕЦИФИЧЕСКИЕ РОУТЫ (ДОЛЖНЫ БЫТЬ ПЕРВЫМИ) ====================
+
+@router.get("/sync-status")
+async def get_sync_status(
+    db: Session = Depends(auth.get_db),
+    current_user: Optional[models.User] = Depends(auth.get_current_active_user)
+):
+    """
+    Статус вакансий в базе
+    """
+    total_jobs = db.query(models.Job).count()
+    
+    # Получаем количество по источникам
+    hh_jobs = db.query(models.Job).filter(models.Job.source == "HeadHunter").count()
+    manual_jobs = db.query(models.Job).filter(models.Job.source == "Ручное добавление").count()
+    
+    # Получаем количество по категориям
+    categories = db.query(
+        models.Job.category, 
+        db.func.count(models.Job.id)
+    ).group_by(models.Job.category).all()
+    
+    # Получаем последние 5 добавленных вакансий
+    recent_jobs = db.query(models.Job).order_by(
+        models.Job.created_at.desc()
+    ).limit(5).all()
+    
+    return {
+        "total_jobs": total_jobs,
+        "by_source": {
+            "HeadHunter": hh_jobs,
+            "Manual": manual_jobs
+        },
+        "by_category": {cat[0]: cat[1] for cat in categories if cat[0]},
+        "last_sync": _sync_status["last_sync"],
+        "is_syncing": _sync_status["is_syncing"],
+        "recent_jobs": [
+            {
+                "title": job.title,
+                "company": job.company,
+                "source": job.source,
+                "created_at": job.created_at
+            }
+            for job in recent_jobs
+        ]
+    }
+
+
+@router.post("/sync-hh")
+async def sync_headhunter_vacancies(
+    background_tasks: BackgroundTasks,
+    keywords: Optional[str] = Query(None, description="Ключевые слова для поиска (через запятую)"),
+    db: Session = Depends(auth.get_db),
+    current_user: models.User = Depends(auth.get_current_admin_user)
+):
+    """
+    Ручная синхронизация вакансий с HeadHunter (только для администраторов)
+    """
+    if _sync_status["is_syncing"]:
+        raise HTTPException(status_code=409, detail="Синхронизация уже выполняется")
+    
+    if keywords:
+        keywords_list = [k.strip() for k in keywords.split(",")]
+    else:
+        keywords_list = [
+            "разработчик", "дизайнер", "smm", "маркетолог", "аналитик",
+            "видеомонтаж", "копирайтер", "менеджер проектов", "qa", "devops",
+            "программист", "frontend", "backend", "fullstack", "ui/ux",
+            "контент-менеджер", "product manager", "data analyst"
+        ]
+    
+    _sync_status["is_syncing"] = True
+    
+    async def run_sync():
+        try:
+            result = await fetch_hh_vacancies(db, keywords_list)
+            _sync_status["last_sync"] = datetime.now()
+            _sync_status["total_jobs"] = db.query(models.Job).count()
+            logger.info(f"Ручная синхронизация завершена: {result}")
+        except Exception as e:
+            logger.error(f"Ошибка синхронизации: {e}")
+        finally:
+            _sync_status["is_syncing"] = False
+    
+    background_tasks.add_task(run_sync)
+    
+    return {
+        "message": "Синхронизация с HeadHunter запущена",
+        "keywords": keywords_list,
+        "status": "processing",
+        "total_jobs": db.query(models.Job).count()
+    }
+
+
+@router.get("/categories", response_model=List[str])
+async def get_categories(
+    db: Session = Depends(auth.get_db)
+):
+    """
+    Получение списка всех категорий вакансий
+    """
+    categories = db.query(models.Job.category).distinct().all()
+    return [cat[0] for cat in categories if cat[0] if cat[0]]
+
+
+@router.get("/locations", response_model=List[str])
+async def get_locations(
+    db: Session = Depends(auth.get_db)
+):
+    """
+    Получение списка всех городов
+    """
+    locations = db.query(models.Job.location).distinct().all()
+    return [loc[0] for loc in locations if loc[0] if loc[0]]
+
+
+@router.post("/add-manual")
+async def add_manual_job(
+    job_data: dict,
+    db: Session = Depends(auth.get_db),
+    current_user: models.User = Depends(auth.get_current_admin_user)
+):
+    """
+    Ручное добавление вакансии администратором
+    """
+    required_fields = ["title", "company", "description"]
+    for field in required_fields:
+        if field not in job_data:
+            raise HTTPException(status_code=400, detail=f"Поле '{field}' обязательно")
+    
+    job = models.Job(
+        id=str(uuid.uuid4()),
+        title=job_data["title"][:255],
+        company=job_data["company"][:255],
+        description=job_data["description"],
+        link=job_data.get("link"),
+        source="Ручное добавление",
+        location=job_data.get("location", "Не указан"),
+        category=job_data.get("category", "other"),
+        employment_type=job_data.get("employment_type", "full_time")
+    )
+    
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    
+    return {
+        "message": "Вакансия добавлена",
+        "job": job
+    }
+
+
+@router.get("/stats/quick")
+async def get_quick_stats(
+    db: Session = Depends(auth.get_db)
+):
+    """
+    Быстрая статистика для виджета на главной
+    """
+    total_jobs = db.query(models.Job).count()
+    total_categories = db.query(models.Job.category).distinct().count()
+    
+    # Топ-3 категории по количеству вакансий
+    top_categories = db.query(
+        models.Job.category,
+        db.func.count(models.Job.id).label("count")
+    ).group_by(models.Job.category).order_by(
+        db.func.count(models.Job.id).desc()
+    ).limit(3).all()
+    
+    return {
+        "total_jobs": total_jobs,
+        "total_categories": total_categories,
+        "top_categories": [
+            {"category": cat[0] or "other", "count": cat[1]}
+            for cat in top_categories
+        ]
+    }
+
+
+# ==================== ДИНАМИЧЕСКИЕ РОУТЫ (ДОЛЖНЫ БЫТЬ ПОСЛЕ СПЕЦИФИЧЕСКИХ) ====================
+
 @router.get("/", response_model=List[schemas.JobResponse])
 async def get_jobs(
     db: Session = Depends(auth.get_db),
@@ -75,21 +257,6 @@ async def get_jobs(
     # Пагинация
     jobs = query.offset(skip).limit(limit).all()
     return jobs
-
-
-@router.get("/{job_id}", response_model=schemas.JobResponse)
-async def get_job(
-    job_id: str,
-    db: Session = Depends(auth.get_db),
-    current_user: Optional[models.User] = Depends(auth.get_current_active_user)
-):
-    """
-    Получение конкретной вакансии по ID
-    """
-    job = db.query(models.Job).filter(models.Job.id == job_id).first()
-    if not job:
-        raise HTTPException(status_code=404, detail="Вакансия не найдена")
-    return job
 
 
 @router.get("/recommended", response_model=List[schemas.RecommendationResponse])
@@ -183,156 +350,6 @@ async def get_recommended_jobs(
     return recommendations
 
 
-@router.get("/categories", response_model=List[str])
-async def get_categories(
-    db: Session = Depends(auth.get_db)
-):
-    """
-    Получение списка всех категорий вакансий
-    """
-    categories = db.query(models.Job.category).distinct().all()
-    return [cat[0] for cat in categories if cat[0] if cat[0]]
-
-
-@router.get("/locations", response_model=List[str])
-async def get_locations(
-    db: Session = Depends(auth.get_db)
-):
-    """
-    Получение списка всех городов
-    """
-    locations = db.query(models.Job.location).distinct().all()
-    return [loc[0] for loc in locations if loc[0] if loc[0]]
-
-
-@router.post("/sync-hh")
-async def sync_headhunter_vacancies(
-    background_tasks: BackgroundTasks,
-    keywords: Optional[str] = Query(None, description="Ключевые слова для поиска (через запятую)"),
-    db: Session = Depends(auth.get_db),
-    current_user: models.User = Depends(auth.get_current_admin_user)
-):
-    """
-    Ручная синхронизация вакансий с HeadHunter (только для администраторов)
-    """
-    if _sync_status["is_syncing"]:
-        raise HTTPException(status_code=409, detail="Синхронизация уже выполняется")
-    
-    if keywords:
-        keywords_list = [k.strip() for k in keywords.split(",")]
-    else:
-        keywords_list = [
-            "разработчик", "дизайнер", "smm", "маркетолог", "аналитик",
-            "видеомонтаж", "копирайтер", "менеджер проектов", "qa", "devops",
-            "программист", "frontend", "backend", "fullstack", "ui/ux",
-            "контент-менеджер", "product manager", "data analyst"
-        ]
-    
-    _sync_status["is_syncing"] = True
-    
-    async def run_sync():
-        try:
-            result = await fetch_hh_vacancies(db, keywords_list)
-            _sync_status["last_sync"] = datetime.now()
-            _sync_status["total_jobs"] = db.query(models.Job).count()
-            logger.info(f"Ручная синхронизация завершена: {result}")
-        except Exception as e:
-            logger.error(f"Ошибка синхронизации: {e}")
-        finally:
-            _sync_status["is_syncing"] = False
-    
-    background_tasks.add_task(run_sync)
-    
-    return {
-        "message": "Синхронизация с HeadHunter запущена",
-        "keywords": keywords_list,
-        "status": "processing",
-        "total_jobs": db.query(models.Job).count()
-    }
-
-
-@router.get("/sync-status")
-async def get_sync_status(
-    db: Session = Depends(auth.get_db),
-    current_user: Optional[models.User] = Depends(auth.get_current_active_user)
-):
-    """
-    Статус вакансий в базе
-    """
-    total_jobs = db.query(models.Job).count()
-    
-    # Получаем количество по источникам
-    hh_jobs = db.query(models.Job).filter(models.Job.source == "HeadHunter").count()
-    manual_jobs = db.query(models.Job).filter(models.Job.source == "Ручное добавление").count()
-    
-    # Получаем количество по категориям
-    categories = db.query(
-        models.Job.category, 
-        db.func.count(models.Job.id)
-    ).group_by(models.Job.category).all()
-    
-    # Получаем последние 5 добавленных вакансий
-    recent_jobs = db.query(models.Job).order_by(
-        models.Job.created_at.desc()
-    ).limit(5).all()
-    
-    return {
-        "total_jobs": total_jobs,
-        "by_source": {
-            "HeadHunter": hh_jobs,
-            "Manual": manual_jobs
-        },
-        "by_category": {cat[0]: cat[1] for cat in categories if cat[0]},
-        "last_sync": _sync_status["last_sync"],
-        "is_syncing": _sync_status["is_syncing"],
-        "recent_jobs": [
-            {
-                "title": job.title,
-                "company": job.company,
-                "source": job.source,
-                "created_at": job.created_at
-            }
-            for job in recent_jobs
-        ]
-    }
-
-
-@router.post("/add-manual")
-async def add_manual_job(
-    job_data: dict,
-    db: Session = Depends(auth.get_db),
-    current_user: models.User = Depends(auth.get_current_admin_user)
-):
-    """
-    Ручное добавление вакансии администратором
-    """
-    required_fields = ["title", "company", "description"]
-    for field in required_fields:
-        if field not in job_data:
-            raise HTTPException(status_code=400, detail=f"Поле '{field}' обязательно")
-    
-    job = models.Job(
-        id=str(uuid.uuid4()),
-        title=job_data["title"][:255],
-        company=job_data["company"][:255],
-        description=job_data["description"],
-        link=job_data.get("link"),
-        source="Ручное добавление",
-        location=job_data.get("location", "Не указан"),
-        category=job_data.get("category", "other"),
-        employment_type=job_data.get("employment_type", "full_time")
-    )
-    
-    db.add(job)
-    db.commit()
-    db.refresh(job)
-    
-    return {
-        "message": "Вакансия добавлена",
-        "job": job
-    }
-
-
 @router.delete("/{job_id}")
 async def delete_job(
     job_id: str,
@@ -352,29 +369,16 @@ async def delete_job(
     return {"message": "Вакансия удалена"}
 
 
-@router.get("/stats/quick")
-async def get_quick_stats(
-    db: Session = Depends(auth.get_db)
+@router.get("/{job_id}", response_model=schemas.JobResponse)
+async def get_job(
+    job_id: str,
+    db: Session = Depends(auth.get_db),
+    current_user: Optional[models.User] = Depends(auth.get_current_active_user)
 ):
     """
-    Быстрая статистика для виджета на главной
+    Получение конкретной вакансии по ID
     """
-    total_jobs = db.query(models.Job).count()
-    total_categories = db.query(models.Job.category).distinct().count()
-    
-    # Топ-3 категории по количеству вакансий
-    top_categories = db.query(
-        models.Job.category,
-        db.func.count(models.Job.id).label("count")
-    ).group_by(models.Job.category).order_by(
-        db.func.count(models.Job.id).desc()
-    ).limit(3).all()
-    
-    return {
-        "total_jobs": total_jobs,
-        "total_categories": total_categories,
-        "top_categories": [
-            {"category": cat[0] or "other", "count": cat[1]}
-            for cat in top_categories
-        ]
-    }
+    job = db.query(models.Job).filter(models.Job.id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Вакансия не найдена")
+    return job

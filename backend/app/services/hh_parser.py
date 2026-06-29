@@ -13,6 +13,9 @@ class HeadHunterParser:
     """Парсер вакансий с HeadHunter API - Production Ready"""
     
     BASE_URL = "https://api.hh.ru"
+    HEADERS = {
+        "User-Agent": "SkillBridge-Kazakhstan/1.0 (contact@skillbridge.kz)"  # <-- ДОБАВЬТЕ
+    }
     
     def __init__(self):
         self.session = None
