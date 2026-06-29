@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, s
 from sqlalchemy.orm import Session
 from typing import List
 from .. import models, schemas, auth
+from ..services.cloudinary_storage import upload_portfolio_file, delete_portfolio_file
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
