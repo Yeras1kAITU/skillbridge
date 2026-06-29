@@ -1,0 +1,15 @@
+[Unit]
+Description=SkillBridge Kazakhstan
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/skillbridge/backend
+Environment="PATH=/var/www/skillbridge/venv/bin"
+Environment="SECRET_KEY=your-secret-key"
+ExecStart=/var/www/skillbridge/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

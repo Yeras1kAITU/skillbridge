@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/skillbridge
+      - SECRET_KEY=${SECRET_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+    depends_on:
+      - db
+    volumes:
+      - ./backend/uploads:/app/uploads
+
+  db:
+    image: postgres:15
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=skillbridge
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
