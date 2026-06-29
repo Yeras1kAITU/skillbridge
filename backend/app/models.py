@@ -63,12 +63,12 @@ class Portfolio(Base):
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
-    file_path = Column(String(500), nullable=False)  # Путь к файлу или ссылка
-    category = Column(String(100), nullable=True)  # "design", "development", "video", etc.
+    file_path = Column(String(500), nullable=False)  # URL from Cloudinary
+    cloudinary_public_id = Column(String(255), nullable=True)  # Cloudinary public_id
+    category = Column(String(100), nullable=True)
     is_public = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    owner = relationship("User", back_populates="portfolio_items")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class Skill(Base):
     __tablename__ = "skills"

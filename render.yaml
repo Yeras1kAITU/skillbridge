@@ -21,6 +21,12 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        value: dlbc6avuc
+      - key: CLOUDINARY_API_KEY
+        value: 325349969322864
+      - key: CLOUDINARY_API_SECRET
+        sync: false
     plan: free
 
 databases:

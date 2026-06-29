@@ -24,26 +24,26 @@ async def upload_portfolio_item(
     if file.size > 100 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="File too large (max 100MB)")
 
-    # Генерация безопасного имени файла
-    file_extension = os.path.splitext(file.filename)[1]
-    safe_filename = f"{current_user.id}_{title}_{file.filename}"
-    file_path = os.path.join(UPLOAD_DIR, safe_filename)
+    file_content = await file.read()
+    upload_result = upload_portfolio_file(
+        file_content,
+        current_user.id,
+        title,
+        category or "other"
+    )
 
-    # Сохранение файла
-    try:
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Could not save file: {str(e)}")
+    if not upload_result:
+        raise HTTPException(status_code=500, detail="Failed to upload to Cloudinary")
 
-    # Создание записи в БД
+    # Create database record with Cloudinary URL
     db_item = models.Portfolio(
         user_id=current_user.id,
         title=title,
         description=description,
-        file_path=file_path,
+        file_path=upload_result["url"],  # Store Cloudinary URL
         category=category,
-        is_public=is_public
+        is_public=is_public,
+        cloudinary_public_id=upload_result["public_id"]  # Store for deletion
     )
     db.add(db_item)
     db.commit()
@@ -94,9 +94,11 @@ async def delete_portfolio_item(
     item = db.query(models.Portfolio).filter(models.Portfolio.id == item_id).first()
     if not item or item.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Item not found")
-    # Удаление файла
-    if os.path.exists(item.file_path):
-        os.remove(item.file_path)
+
+    # Delete from Cloudinary
+    if hasattr(item, 'cloudinary_public_id') and item.cloudinary_public_id:
+        delete_portfolio_file(item.cloudinary_public_id)
+
     db.delete(item)
     db.commit()
     return
