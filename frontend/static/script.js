@@ -1,6 +1,7 @@
 // Глобальные переменные
 let currentUser = null;
 let token = localStorage.getItem('access_token');
+const API_BASE = 'https://skillbridge-backend-31qr.onrender.com'
 
 // Показать страницу
 async function showPage(page) {
@@ -326,7 +327,7 @@ async function apiCall(endpoint, method = 'GET', body = null, isFormData = false
         options.body = isFormData ? body : JSON.stringify(body);
     }
 
-    const response = await fetch(`/api${endpoint}`, options);
+    const response = await fetch(`${API_BASE}${endpoint}`, options);
     if (!response.ok) {
         if (response.status === 401) {
             localStorage.removeItem('access_token');
