@@ -21,7 +21,7 @@ class HeadHunterParser:
         self.session = None
     
     async def __aenter__(self):
-        self.session = aiohttp.ClientSession()
+        self.session = aiohttp.ClientSession(headers=self.HEADERS)
         return self
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):

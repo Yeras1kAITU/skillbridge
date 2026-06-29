@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, Query, BackgroundTasks, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import func  # <-- ДОБАВЬТЕ ЭТОТ ИМПОРТ
 from typing import List, Optional
 from .. import models, schemas, auth
 from ..services.hh_parser import fetch_hh_vacancies
@@ -18,7 +19,7 @@ _sync_status = {
 }
 
 
-# ==================== СПЕЦИФИЧЕСКИЕ РОУТЫ (ДОЛЖНЫ БЫТЬ ПЕРВЫМИ) ====================
+# ==================== СПЕЦИФИЧЕСКИЕ РОУТЫ ====================
 
 @router.get("/sync-status")
 async def get_sync_status(
@@ -34,10 +35,10 @@ async def get_sync_status(
     hh_jobs = db.query(models.Job).filter(models.Job.source == "HeadHunter").count()
     manual_jobs = db.query(models.Job).filter(models.Job.source == "Ручное добавление").count()
     
-    # Получаем количество по категориям
+    # Получаем количество по категориям - ИСПРАВЛЕНО
     categories = db.query(
         models.Job.category, 
-        db.func.count(models.Job.id)
+        func.count(models.Job.id)  # <-- ИСПОЛЬЗУЕМ func ИЗ sqlalchemy
     ).group_by(models.Job.category).all()
     
     # Получаем последние 5 добавленных вакансий
@@ -180,12 +181,12 @@ async def get_quick_stats(
     total_jobs = db.query(models.Job).count()
     total_categories = db.query(models.Job.category).distinct().count()
     
-    # Топ-3 категории по количеству вакансий
+    # Топ-3 категории по количеству вакансий - ИСПРАВЛЕНО
     top_categories = db.query(
         models.Job.category,
-        db.func.count(models.Job.id).label("count")
+        func.count(models.Job.id).label("count")  # <-- ИСПОЛЬЗУЕМ func ИЗ sqlalchemy
     ).group_by(models.Job.category).order_by(
-        db.func.count(models.Job.id).desc()
+        func.count(models.Job.id).desc()  # <-- ИСПОЛЬЗУЕМ func ИЗ sqlalchemy
     ).limit(3).all()
     
     return {
@@ -198,7 +199,7 @@ async def get_quick_stats(
     }
 
 
-# ==================== ДИНАМИЧЕСКИЕ РОУТЫ (ДОЛЖНЫ БЫТЬ ПОСЛЕ СПЕЦИФИЧЕСКИХ) ====================
+# ==================== ДИНАМИЧЕСКИЕ РОУТЫ ====================
 
 @router.get("/", response_model=List[schemas.JobResponse])
 async def get_jobs(
