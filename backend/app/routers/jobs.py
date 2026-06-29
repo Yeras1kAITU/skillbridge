@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, Query, BackgroundTasks, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from .. import models, schemas, auth
 from ..services.job_aggregator import get_aggregated_jobs
 from ..services.hh_parser import fetch_hh_vacancies
+import uuid  # <-- ДОБАВЬТЕ ЭТОТ ИМПОРТ
 import asyncio
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -120,7 +121,18 @@ async def get_jobs(
                 models.Job.company == job_data.get("company")
             ).first()
             if not existing_job:
-                new_job = models.Job(**job_data)
+                # ЯВНО СОЗДАЁМ ОБЪЕКТ С UUID
+                new_job = models.Job(
+                    id=str(uuid.uuid4()),  # <-- ЯВНО ГЕНЕРИРУЕМ UUID
+                    title=job_data["title"],
+                    company=job_data.get("company"),
+                    description=job_data.get("description"),
+                    link=job_data.get("link"),
+                    source=job_data.get("source"),
+                    location=job_data.get("location"),
+                    category=job_data.get("category"),
+                    employment_type=job_data.get("employment_type")
+                )
                 db.add(new_job)
         db.commit()
 
@@ -329,7 +341,3 @@ async def get_sync_status(
         "by_category": {cat[0]: cat[1] for cat in categories if cat[0]},
         "last_sync": "Автоматически при запросе"
     }
-
-
-# Импорт HTTPException для обработки ошибок
-from fastapi import HTTPException
